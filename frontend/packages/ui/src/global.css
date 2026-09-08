@@ -1,0 +1,17 @@
+:root {
+  --color-bg: #0B0F14;
+  --color-primary-text: #E6EDF3;
+  --color-accent: #22D3EE;
+}
+
+[data-theme="citizen-online"] {
+  --color-bg: #FFFFFF;
+  --color-primary-text: #0B0F14;
+  --color-accent: #2563EB;
+}
+
+[data-theme="offline"] {
+  --color-bg: #000000;
+  --color-primary-text: #FFFFFF;
+  --color-accent: #FF0000;
+}
