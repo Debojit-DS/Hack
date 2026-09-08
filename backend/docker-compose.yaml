@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  api:
+    build: ./services/api
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ./services/worker
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./models:/models:ro
+      - ./data/dem_tiles:/data/dem_tiles:ro
+      - ./mock_data/satellite_frames:/mock_data/satellite_frames:ro
+    command: celery -A worker_app worker --loglevel=info
+
+  scheduler:
+    build: ./services/scheduler
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./mock_data/satellite_frames:/mock_data/satellite_frames:ro
+
+volumes:
+  pgdata:
+  minio_data:

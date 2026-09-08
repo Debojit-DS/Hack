@@ -1,0 +1,13 @@
+celery[redis]
+redis
+apscheduler
+psycopg2-binary
+sqlalchemy
+geopy
+rasterio
+shapely
+numpy
+opencv-python-headless
+requests
+python-json-logger
+pysheds
