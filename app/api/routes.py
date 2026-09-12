@@ -52,6 +52,29 @@ def village_detail(village_id: str):
 @router.get("/alerts")
 def get_alerts(): return {"active": alert_engine.active_alerts(), "log": alert_engine.recent_log(50)}
 
+
+@router.get("/public-alerts")
+def public_alerts():
+    return {
+        "service": "MeghDrishti Public Disaster Alerts",
+        "updated_at": time.time(),
+        "alerts": alert_engine.active_alerts(),
+        "notice": "Prototype early-warning feed. Follow official district/state disaster-management instructions during an emergency."
+    }
+
+
+@router.get("/public-summary")
+def public_summary():
+    active = alert_engine.active_alerts()
+    highest = next((x for x in ("Critical", "Warning", "Watch") if any(a["level"] == x for a in active)), "Low")
+    return {
+        "service": "MeghDrishti",
+        "active_alerts": len(active),
+        "highest_level": highest,
+        "alerts": active[:20],
+        "updated_at": time.time()
+    }
+
 @router.get("/historical-events")
 def get_historical_events(village_id: str = None):
     return [e for e in HISTORICAL_EVENTS if not village_id or e["village_id"] == village_id]

@@ -1,7 +1,8 @@
 import asyncio
 import contextlib
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
@@ -63,3 +64,24 @@ async def set_language(request: Request, lang_code: str):
     if lang_code in TRANSLATIONS:
         response.set_cookie(key="meghdrishti_lang", value=lang_code, max_age=60 * 60 * 24 * 365, httponly=False)
     return response
+
+
+@app.get("/disaster-alerts", response_class=HTMLResponse)
+async def public_alerts_page(request: Request):
+    return templates.TemplateResponse(request, "public_alerts.html")
+
+
+@app.get("/warnings", response_class=HTMLResponse)
+async def warnings_page(request: Request):
+    return templates.TemplateResponse(request, "public_alerts.html")
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots():
+    return "User-agent: *\nAllow: /\nAllow: /disaster-alerts\nAllow: /warnings\nSitemap: /sitemap.xml\n"
+
+
+@app.get("/sitemap.xml")
+async def sitemap():
+    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/0.9"><url><loc>/</loc></url><url><loc>/disaster-alerts</loc></url><url><loc>/warnings</loc></url></urlset>'
+    return Response(content=xml, media_type="application/xml")

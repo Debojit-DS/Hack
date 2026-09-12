@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disaster Alerts & Flash Flood Warnings | MeghDrishti</title>
+<meta name="description" content="Public hyper-local early warning feed for flash floods and landslides in hilly regions. Live village-level alerts from MeghDrishti.">
+<link rel="canonical" href="/disaster-alerts">
+<link rel="manifest" href="/static/manifest.json"><meta name="theme-color" content="#FFFFFF">
+<link rel="stylesheet" href="/static/css/style.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Disaster Alerts & Flash Flood Warnings",
+  "description": "Public hyper-local early warning feed for flash floods and landslides in hilly regions.",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "MeghDrishti"
+  }
+}
+</script>
+</head>
+<body>
+<div class="public-alert-page">
+  <div class="public-shell">
+    <header class="public-hero">
+      <div class="brand" style="justify-content:center;margin-bottom:16px"><div class="brand-mark">MD</div><div><div class="title">MeghDrishti</div><div class="subtitle">Public disaster alerts · flash flood early warning</div></div></div>
+      <h1>Disaster Alerts</h1>
+      <p>Live hyper-local early warnings for flash floods and landslides. Follow official advice and evacuate when instructed.</p>
+      <div class="public-actions">
+        <a href="/" class="primary">← Back to dashboard</a>
+        <button class="ghost" onclick="enablePublicNotifications()" id="notifyBtn">🔔 Enable emergency notifications</button>
+        <button class="ghost" onclick="loadPublicAlerts()">↻ Refresh</button>
+      </div>
+      <div class="notify-help" id="notifyHelp">Notifications are optional. Keep this page open for live alerts.</div>
+    </header>
+
+    <div class="public-status-grid">
+      <div class="public-stat"><small>Status</small><strong id="publicHighest">LOW</strong><span id="publicUpdated" class="muted">Updated --</span></div>
+      <div class="public-stat"><small>Active Warnings</small><strong id="publicCount">0</strong><span>Current alerts</span></div>
+      <div class="public-stat"><small>Safety</small><strong>FOLLOW OFFICIAL ADVICE</strong><span>Do not wait to evacuate</span></div>
+    </div>
+
+    <div class="public-alerts-card">
+      <div class="card-head"><div><span class="eyebrow">LIVE FEED</span><h2>Current disaster alerts</h2></div><span class="live-label">● LIVE</span></div>
+      <div id="publicAlerts"><div class="muted">Loading...</div></div>
+    </div>
+
+    <div class="public-info">
+      <div class="card"><span class="eyebrow">ABOUT THIS PORTAL</span><h2>What is this page?</h2><p>This is a public-facing view of MeghDrishti’s village-level early warning feed. It is intended to complement, not replace, official district and state disaster-management broadcasts.</p></div>
+      <div class="card"><span class="eyebrow">PROTOTYPE NOTICE</span><h2>Demo environment</h2><p>This is a SIH 2026 prototype. Sensor inputs are simulated and model outputs are illustrative. In an emergency, always follow instructions from local authorities and NDRF/SDRF officials on the ground.</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+let known=new Set();const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t){$('toast').textContent=t;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2600)}
+async function loadPublicAlerts(){try{const d=await(await fetch('/api/public-alerts')).json();const a=d.alerts||[];const levels=['Critical','Warning','Watch','Low'];const highest=levels.find(x=>a.some(y=>y.level===x))||'Low';$('publicHighest').textContent=highest.toUpperCase();$('publicHighest').className='public-'+highest.toLowerCase();$('publicCount').textContent=a.length;$('publicUpdated').textContent='Updated '+new Date(d.updated_at*1000).toLocaleTimeString();$('publicAlerts').innerHTML=a.length?a.map(x=>`<article class="public-alert ${x.level}"><div class="alert-level">${esc(x.level)}</div><div class="alert-main"><h3>${esc(x.village_name)} · ${esc(x.district)}</h3><p>${esc(x.message)}</p><div class="alert-meta"><span>⏱ Lead time: <b>${x.estimated_lead_time_min} min</b></span><span>🌧 ${Number(x.rainfall_mm_hr).toFixed(1)} mm/hr</span><span>💧 Soil ${Number(x.soil_moisture_pct).toFixed(0)}%</span></div><div class="action-box"><b>Recommended action:</b> ${esc(x.recommended_action)}</div></div></article>`).join(''):'<div class="all-clear"><b>No active Watch/Warning/Critical alerts.</b><span>Continue monitoring official channels.</span></div>';a.forEach(x=>{if(!known.has(x.id)){known.add(x.id);notify(x)}})}catch(e){$('publicAlerts').innerHTML='<div class="muted">Live feed unavailable. Check your connection.</div>'}}
+function notify(a){if(!('Notification' in window)||Notification.permission!=='granted')return;const title=`${a.level}: ${a.village_name}`;const body=`${a.message} Estimated lead time: ${a.estimated_lead_time_min} minutes.`;if('serviceWorker' in navigator){navigator.serviceWorker.ready.then(r=>r.showNotification(title,{body,tag:a.id,requireInteraction:a.level==='Critical',data:{url:'/disaster-alerts'}})).catch(()=>new Notification(title,{body}))}else{new Notification(title,{body})}}
+async function enablePublicNotifications(){if(!('Notification' in window)){toast('This browser does not support notifications.');return}const p=await Notification.requestPermission();$('notifyHelp').textContent=p==='granted'?'✓ Emergency browser notifications enabled. Keep this site open for live alerts.':'Notifications were not enabled.';if(p==='granted')toast('Emergency notifications enabled.')}
+loadPublicAlerts();setInterval(loadPublicAlerts,4000);if('serviceWorker' in navigator)navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+</script>
+</body></html>

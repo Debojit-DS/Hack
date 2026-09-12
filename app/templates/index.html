@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ translations.site_title }} · SIH 2026</title>
-<link rel="manifest" href="/static/manifest.json"><meta name="theme-color" content="#071014">
+<link rel="manifest" href="/static/manifest.json"><meta name="theme-color" content="#FFFFFF">
 <link rel="stylesheet" href="/static/css/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand"><div class="brand-mark">SE</div><div><div class="title">{{ translations.site_title }}</div><div class="subtitle">{{ translations.site_subtitle }}</div></div></div>
-  <div class="role-switch"><button id="citizenBtn" class="active" onclick="setMode('citizen')">{{ translations.role_citizen }}</button><button id="adminBtn" onclick="setMode('admin')">{{ translations.role_admin }}</button></div>
+  <div class="role-switch"><button id="citizenBtn" class="active" onclick="setMode('citizen')">{{ translations.role_citizen }}</button><button id="adminBtn" onclick="setMode('admin')">{{ translations.role_admin }}</button></div><a href="/disaster-alerts" class="primary" style="text-decoration:none">Alerts →</a>
   <div class="status-chips"><div class="chip"><b id="stat-villages">--</b><small>{{ translations.chip_wards }}</small></div><div class="chip"><b id="stat-online">--</b><small>{{ translations.chip_sensors }}</small></div><div class="chip alert"><b id="stat-alerts">--</b><small>{{ translations.chip_alerts }}</small></div><div class="chip"><b id="stat-updated">--</b><small>{{ translations.chip_updated }}</small></div></div>
   <div class="lang-switch">
     <button id="langEn" class="lang-btn{% if lang == 'en' %} active{% endif %}" onclick="setLanguage('en')">{{ translations.lang_english }}</button>
