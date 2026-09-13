@@ -86,7 +86,32 @@ python train_model.py
 uvicorn app.main:app --reload --port 8000
 ```
 
-Open **http://localhost:8000** in your browser.
+Open **http://localhost:8000** in your browser. The dashboard loads directly.
+
+### Environment variables
+
+Create a `.env` file in the project root if you want to enable AI vision
+verification for citizen photo reports:
+
+```
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+If `GROQ_API_KEY` is not set, the system falls back to a strict local
+image heuristic. The Groq vision model used is `llama-3.2-90b-vision-preview`.
+
+### Troubleshooting Groq vision
+
+If photo verification returns `is_valid: false` with reason
+`"Heuristic demo signal — configure GROQ_API_KEY for AI Vision."`,
+your Groq API key is either missing or invalid. Common causes:
+
+- The key in `.env` is expired or was revoked.
+- The Groq account has no access to vision models.
+- Network egress to `api.groq.com` is blocked.
+
+The app will continue working with the local heuristic fallback; live
+sensor predictions, maps, alerts, and offline mode do not depend on Groq.
 
 ---
 

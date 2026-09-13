@@ -2,16 +2,16 @@ import asyncio
 import contextlib
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
-from fastapi.responses import HTMLResponse
 
 from app.api.routes import router as api_router
 from app.data.villages import VILLAGES
 from app.data.sensor_simulator import sensor_network
 from app.data.translations import TRANSLATIONS
+from app.data.citizen_db import init_db
 from app.models.ml_model import build_feature_row, predict
 from app.alerts.alert_engine import alert_engine
 
@@ -32,6 +32,7 @@ async def simulation_loop():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     task = asyncio.create_task(simulation_loop())
     yield
     task.cancel()
@@ -76,9 +77,14 @@ async def warnings_page(request: Request):
     return templates.TemplateResponse(request, "public_alerts.html")
 
 
+@app.get("/offline", response_class=HTMLResponse)
+async def offline_page(request: Request):
+    return templates.TemplateResponse(request, "offline.html")
+
+
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots():
-    return "User-agent: *\nAllow: /\nAllow: /disaster-alerts\nAllow: /warnings\nSitemap: /sitemap.xml\n"
+    return "User-agent: *\nAllow: /\nAllow: /dashboard\nAllow: /disaster-alerts\nAllow: /warnings\nSitemap: /sitemap.xml\n"
 
 
 @app.get("/sitemap.xml")

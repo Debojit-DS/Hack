@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offline Mode | MeghDrishti</title>
+<link rel="manifest" href="/static/manifest.json"><meta name="theme-color" content="#FFFFFF">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  .offline-shell{max-width:900px;margin:0 auto;padding:24px}
+  .offline-hero{text-align:center;padding:48px 24px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .offline-hero h1{font-size:32px;margin:16px 0;color:var(--text)}
+  .offline-hero p{color:var(--muted);font-size:16px;max-width:600px;margin:0 auto 24px}
+  .offline-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:24px;margin-bottom:16px}
+  .offline-card h2{font-size:18px;color:var(--text);margin:0 0 12px}
+  .offline-card p, .offline-card li{color:var(--muted);font-size:14px;line-height:1.6}
+  .offline-card ol{padding-left:20px}
+  .offline-card .safe-mini{margin-top:12px;padding:11px;border-radius:10px;background:var(--red-soft);border:1px solid rgba(193,18,31,.18);font-size:11px;line-height:1.5;color:var(--text)}
+  .offline-card .safe-mini span{color:var(--muted)}
+  .offline-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+  .offline-chip{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--text);font-weight:700;font-size:13px}
+  .offline-chip .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .offline-map{border-radius:10px;border:1px solid var(--line);overflow:hidden;margin-top:12px;background:#e5e3df}
+  #offlineMap{height:320px;width:100%}
+  .offline-directions{margin-top:12px;padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-size:13px;color:var(--text)}
+  .offline-directions b{color:var(--red-primary)}
+</style>
+</head>
+<body>
+<div class="public-alert-page">
+  <div class="offline-shell">
+    <header class="offline-hero">
+      <div class="brand" style="justify-content:center;margin-bottom:16px"><div class="brand-mark">MD</div><div><div class="title">MeghDrishti</div><div class="subtitle">Offline safety mode</div></div></div>
+      <h1>You are currently offline</h1>
+      <p>This page shows cached emergency guidance and the last known safest evacuation point for the selected ward. Follow official advice and move to safety when instructed.</p>
+      <div class="offline-actions">
+        <span class="offline-chip"><span class="dot"></span> Offline mode active</span>
+        <button class="ghost" onclick="window.location.reload()">Retry connection</button>
+      </div>
+    </header>
+
+    <div class="offline-card">
+      <h2>Selected ward safety info</h2>
+      <div id="offlineWardInfo" class="safe-mini">Loading cached ward...</div>
+    </div>
+
+    <div class="offline-card">
+      <h2>Offline directions map</h2>
+      <div id="offlineMap" class="offline-map"></div>
+      <div id="offlineDirections" class="offline-directions">Loading cached route...</div>
+    </div>
+
+    <div class="offline-card">
+      <h2>Emergency directions</h2>
+      <ol>
+        <li>Move to higher ground immediately if you are in a low-lying area.</li>
+        <li>Follow the nearest safe spot shown above.</li>
+        <li>Avoid crossing flooded roads or swollen streams.</li>
+        <li>Listen to local authorities and emergency broadcasts.</li>
+        <li>Keep your phone charged and conserve battery.</li>
+      </ol>
+    </div>
+
+    <div class="offline-card">
+      <h2>Offline safety pack</h2>
+      <p>This offline page was generated from the last available data. Once the network is restored, refresh the dashboard for live alerts and maps.</p>
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+function loadOfflineWardInfo(){
+  try{
+    const spot=JSON.parse(localStorage.getItem('meghdrishtiOfflineSafeSpot')||'null');
+    const el=document.getElementById('offlineWardInfo');
+    if(!spot){el.innerHTML='<b>Recommended:</b> High ground · -- km<br><span>Helipad: No cached helipad</span>';return}
+    el.innerHTML=`<b>Ward:</b> ${spot.village_name||spot.village_id||'Unknown'} · <b>Safe spot:</b> ${spot.name} · ${spot.distance_km} km<br><span>Helipad: ${spot.helipad||'No cached helipad'}</span>`;
+  }catch(e){document.getElementById('offlineWardInfo').innerHTML='<b>Recommended:</b> High ground · -- km<br><span>Helipad: No cached helipad</span>'}
+}
+
+function loadOfflineMap(){
+  try{
+    const spot=JSON.parse(localStorage.getItem('meghdrishtiOfflineSafeSpot')||'null');
+    const el=document.getElementById('offlineMap');
+    const dirEl=document.getElementById('offlineDirections');
+    if(!el) return;
+    const safeLat=spot?.village_lat||spot?.lat||30.2;
+    const safeLon=spot?.village_lon||spot?.lon||78.8;
+    const m=L.map(el,{zoomControl:true,attributionControl:false}).setView([safeLat,safeLon],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(m);
+    const safeIcon=L.divIcon({className:'risk-marker',html:'<svg width="24" height="32" viewBox="0 0 24 32"><path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12z" fill="#38d39f" stroke="#fff" stroke-width="2"/></svg>',iconSize:[24,32],iconAnchor:[12,28]});
+    const heliIcon=L.divIcon({className:'heli-marker',html:'<svg width="28" height="32" viewBox="0 0 24 32"><path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12z" fill="#8A5A3B" stroke="#fff" stroke-width="2"/></svg><span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:14px;line-height:1">✈</span>',iconSize:[28,32],iconAnchor:[14,28]});
+    const wardIcon=L.divIcon({className:'risk-marker',html:'<svg width="24" height="32" viewBox="0 0 24 32"><path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12z" fill="#f4a261" stroke="#fff" stroke-width="2"/></svg>',iconSize:[24,32],iconAnchor:[12,28]});
+    if(spot){
+      if(spot.village_lat&&spot.village_lon){L.marker([spot.village_lat,spot.village_lon],{icon:wardIcon}).bindPopup(`<b>${spot.village_name||spot.village_id||'Ward'}</b><br>Selected ward`).addTo(m)}
+      if(spot.lat&&spot.lon){L.marker([spot.lat,spot.lon],{icon:safeIcon}).bindPopup(`<b>${spot.name}</b><br>Distance: ${spot.distance_km} km`).addTo(m)}
+      if(spot.lat&&spot.lon&&spot.village_lat&&spot.village_lon){L.polyline([[spot.village_lat,spot.village_lon],[spot.lat,spot.lon]],{color:'#f4a261',weight:4,opacity:.85,dashArray:'8,6'}).addTo(m)}
+      const dist=spot.distance_km;
+      const bearing=spot.lat&&spot.lon&&spot.village_lat&&spot.village_lon?calculateBearing(spot.village_lat,spot.village_lon,spot.lat,spot.lon):'--';
+      dirEl.innerHTML=`<b>Ward:</b> ${spot.village_name||spot.village_id||'Unknown'} &nbsp;|&nbsp; <b>Safe spot:</b> ${spot.name} &nbsp;|&nbsp; <b>Distance:</b> ${dist} km &nbsp;|&nbsp; <b>Bearing:</b> ${bearing}<br><small>Orange marker = selected ward. Green marker = nearest safe spot.</small>`;
+    }else{
+      m.setView([30.2,78.8],10);
+      dirEl.innerHTML='<b>No cached ward available.</b><br><small>Select a ward while online to cache its nearest safe spot for offline use.</small>';
+    }
+  }catch(e){document.getElementById('offlineDirections').innerHTML='<b>No cached route available.</b><small>Select a ward while online to cache its nearest safe spot.</small>'}
+}
+
+function calculateBearing(lat1,lon1,lat2,lon2){
+  const toRad=d=>d*Math.PI/180;const toDeg=d=>d*180/Math.PI;
+  const dLon=toRad(lon2-lon1);const y=Math.sin(dLon)*Math.cos(toRad(lat2));const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  const brng=toDeg(Math.atan2(y,x));return ((brng+360)%360).toFixed(0)+'°'
+}
+
+loadOfflineWardInfo();
+loadOfflineMap();
+window.addEventListener('online',()=>{window.location.href='/'});
+</script>
+</body>
+</html>

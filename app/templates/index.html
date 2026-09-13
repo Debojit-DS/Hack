@@ -20,11 +20,12 @@
 </header>
 
 <main id="citizenView" class="view">
-  <section class="hero-card"><div><span class="eyebrow">{{ translations.eyebrow_public_safety }}</span><h1>{% autoescape false %}{{ translations.hero_headline }}{% endautoescape %}</h1><p>{{ translations.hero_desc }}</p></div><div class="hero-risk"><div class="pulse-ring"></div><span>{{ translations.hero_live }}</span><strong id="citizenRisk">{{ translations.hero_monitoring }}</strong><small>{{ translations.hero_monitoring_sub }}</small></div></section>
+  <section class="hero-card"><div><span class="eyebrow">{{ translations.eyebrow_public_safety }}</span><h1>{% autoescape false %}{{ translations.hero_headline }}{% endautoescape %}</h1><svg class="wavy-line" width="100%" height="12" viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 C 25 0, 50 12, 75 6 S 125 0, 150 6 S 200 12, 200 6" fill="none" stroke="var(--red-button)" stroke-width="2" stroke-linecap="round"/></svg><p>{{ translations.hero_desc }}</p></div><div class="hero-risk"><div class="pulse-ring"></div><span>{{ translations.hero_live }}</span><strong id="citizenRisk">{{ translations.hero_monitoring }}</strong><small>{{ translations.hero_monitoring_sub }}</small></div></section>
   <section class="citizen-grid">
     <div class="card map-card"><div class="card-head"><div><span class="eyebrow">{{ translations.card_safety_map_eyebrow }}</span><h2>{{ translations.card_safety_map_title }}</h2></div><div><button class="ghost" onclick="locateMe()">{{ translations.btn_locate }}</button><button class="ghost" onclick="toggleSatellite()" id="satelliteBtn">{{ translations.btn_satellite }}</button></div></div><div id="citizenMap"></div><div class="legend"><span><i class="safe"></i> {{ translations.legend_safe }}</span><span><i class="heli"></i> {{ translations.legend_heli }}</span><span><i class="danger"></i> {{ translations.legend_danger }}</span></div></div>
     <div class="card safety-card"><span class="eyebrow">{{ translations.card_safety_eyebrow }}</span><h2>{{ translations.card_safety_title }}</h2><select id="citizenVillage" onchange="loadCitizenVillage()"></select><div id="citizenMetrics" class="metric-stack"></div><button class="primary" onclick="showSafeSpots()">{{ translations.btn_find_safest }}</button><div id="safeResult"></div></div>
     <div class="card report-card"><span class="eyebrow">{{ translations.card_report_eyebrow }}</span><h2>{{ translations.card_report_title }}</h2><p class="muted">{{ translations.card_report_hint }}</p><select id="reportVillage"></select><div class="report-cats"><button onclick="chooseCat(this,'Rising water')">🌊 {{ translations.report_rising_water }}</button><button onclick="chooseCat(this,'Landslide')">⛰ {{ translations.report_landslide }}</button><button onclick="chooseCat(this,'Blocked road')">🚧 {{ translations.report_blocked_road }}</button><button onclick="chooseCat(this,'Cloudburst')">☁ {{ translations.report_cloudburst }}</button></div><textarea id="reportText" placeholder="{{ translations.report_placeholder }}"></textarea><label class="photo-attach"><input type="file" id="reportImage" accept="image/*" capture="environment" onchange="previewReportImage()"> {{ translations.btn_attach_photo }}</label><img id="reportImagePreview" class="hidden" alt="Attached photo preview"><button class="primary" onclick="submitReport()">{{ translations.btn_submit_report }}</button><div id="reportStatus"></div></div>
+    <div class="card verified-card"><span class="eyebrow">{{ translations.card_verified_eyebrow | default('OFFICER VERIFIED') }}</span><h2>{{ translations.card_verified_title | default('Verified community signals') }}</h2><div id="citizenVerifiedReports" class="verified-feed"><div class="muted">Loading verified signals...</div></div></div>
     <div class="card offline-card"><div class="offline-icon">⌁</div><div><span class="eyebrow">{{ translations.card_offline_eyebrow }}</span><h2>{{ translations.card_offline_title }}</h2><p class="muted">{{ translations.card_offline_hint }}</p><button class="ghost" onclick="toggleOffline()" id="offlineBtn">{{ translations.btn_enable_offline }}</button><span class="offline-status" id="offlineStatus">{{ translations.online_active }}</span></div></div>
   </section>
 </main>
@@ -40,10 +41,31 @@
     <div class="card"><span class="eyebrow">{{ translations.card_mass_eyebrow }}</span><h2>{{ translations.card_mass_title }}</h2><textarea id="massMessage" placeholder="{{ translations.mass_placeholder }}"></textarea><div class="recipient-row"><input id="recipients" type="number" value="2500"><span>{{ translations.label_recipients }}</span></div><div class="channel-row"><label><input type="checkbox" checked value="SMS"> SMS</label><label><input type="checkbox" checked value="IVR"> IVR</label><label><input type="checkbox" value="Cell Broadcast"> {{ translations.cell_broadcast }}</label></div><button class="primary" onclick="sendMassMessage()">{{ translations.btn_broadcast }}</button><div id="messageStatus"></div></div>
     <div class="card big"><div class="card-head"><div><span class="eyebrow">{{ translations.card_crowd_eyebrow }}</span><h2>{{ translations.card_crowd_title }}</h2></div><button class="ghost" onclick="loadReports()">{{ translations.btn_refresh_reports }}</button></div><div id="reportsTable" class="reports-table"></div></div>
     <div class="card big"><div class="card-head"><div><span class="eyebrow">{{ translations.card_hist_eyebrow }}</span><h2>{{ translations.card_hist_title }}</h2><p class="muted">{{ translations.hist_hint }}</p></div><div class="range-buttons"><button onclick="makeHistogram(5)">5h</button><button onclick="makeHistogram(3)">3h</button><button onclick="makeHistogram(2)">2h</button><button onclick="makeHistogram(1)">1h</button><button onclick="makeHistogram(0.5)">30m</button></div></div><canvas id="histogram" height="210"></canvas><button class="export" onclick="exportHistogram()">{{ translations.btn_export }}</button></div>
+    <div class="card big"><div class="card-head"><div><span class="eyebrow">{{ translations.card_citizens_eyebrow }}</span><h2>{{ translations.card_citizens_title }}</h2></div><div><input type="text" id="citizenSearch" placeholder="{{ translations.citizen_search }}" oninput="searchCitizens()"><button class="ghost" onclick="openCitizenModal()">{{ translations.btn_add_citizen }}</button><label class="ghost" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="file" id="citizenExcel" accept=".xlsx,.xls" onchange="uploadCitizensExcel()" style="display:none">{{ translations.btn_upload_excel }}</label><button class="ghost" onclick="exportCitizensExcel()">{{ translations.btn_export_excel }}</button></div></div><div id="citizensTable" class="citizens-table"><div class="muted">Loading citizens...</div></div><div id="citizenStats" class="citizen-stats"></div></div>
   </section>
 </main>
 
 <div id="toast"></div>
+<div id="citizenModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeCitizenModal()"></div>
+  <div class="modal-box">
+    <h3 id="citizenModalTitle">{{ translations.citizen_modal_title }}</h3>
+    <form id="citizenForm" onsubmit="saveCitizen(event)">
+      <input type="hidden" id="citizenId">
+      <div class="form-row"><label>{{ translations.citizen_name }}<input type="text" id="citizenName" required></label></div>
+      <div class="form-row"><label>{{ translations.citizen_phone }}<input type="text" id="citizenPhone" required></label></div>
+      <div class="form-row"><label>{{ translations.citizen_email }}<input type="email" id="citizenEmail"></label></div>
+      <div class="form-row"><label>{{ translations.citizen_address }}<textarea id="citizenAddress" rows="2" required></textarea></label></div>
+      <div class="form-row"><label>{{ translations.citizen_ward }}<input type="text" id="citizenWardId" placeholder="Ward ID"><input type="text" id="citizenWardName" placeholder="Ward Name"></label></div>
+      <div class="form-row"><label>{{ translations.citizen_family }}<input type="number" id="citizenFamily" value="0" min="0"></label></div>
+      <div class="form-row"><label>{{ translations.citizen_notes }}<textarea id="citizenNotes" rows="2"></textarea></label></div>
+      <div class="modal-actions">
+        <button type="submit" class="primary">{{ translations.btn_save }}</button>
+        <button type="button" class="ghost" onclick="closeCitizenModal()">{{ translations.btn_cancel }}</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
 const ALL_TRANSLATIONS = {{ all_translations | tojson }};
 let currentLang = "{{ lang }}";

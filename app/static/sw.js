@@ -3,9 +3,12 @@ const ASSETS = [
     "/",
     "/disaster-alerts",
     "/warnings",
+    "/offline",
     "/static/css/style.css",
     "/static/js/dashboard.js",
-    "/static/manifest.json"
+    "/static/manifest.json",
+    "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+    "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
 ];
 
 self.addEventListener("install", e => 
@@ -31,7 +34,11 @@ self.addEventListener("fetch", e => {
                 }
                 return r;
             })
-            .catch(() => caches.match(e.request).then(r => r || caches.match("/")))
+            .catch(() => caches.match(e.request).then(r => {
+                if (r) return r;
+                if (e.request.mode === "navigate") return caches.match("/offline");
+                return caches.match("/");
+            }))
     );
 });
 

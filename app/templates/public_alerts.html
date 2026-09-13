@@ -28,7 +28,7 @@
       <h1>Disaster Alerts</h1>
       <p>Live hyper-local early warnings for flash floods and landslides. Follow official advice and evacuate when instructed.</p>
       <div class="public-actions">
-        <a href="/" class="primary">← Back to dashboard</a>
+        <a href="/dashboard" class="primary">← Back to dashboard</a>
         <button class="ghost" onclick="enablePublicNotifications()" id="notifyBtn">🔔 Enable emergency notifications</button>
         <button class="ghost" onclick="loadPublicAlerts()">↻ Refresh</button>
       </div>
@@ -46,8 +46,13 @@
       <div id="publicAlerts"><div class="muted">Loading...</div></div>
     </div>
 
+    <div class="public-alerts-card verified-signals-card">
+      <div class="card-head"><div><span class="eyebrow">OFFICER VERIFIED</span><h2>Verified community signals</h2></div><span class="live-label">✔ VERIFIED</span></div>
+      <div id="verifiedReports"><div class="muted">Loading verified signals...</div></div>
+    </div>
+
     <div class="public-info">
-      <div class="card"><span class="eyebrow">ABOUT THIS PORTAL</span><h2>What is this page?</h2><p>This is a public-facing view of MeghDrishti’s village-level early warning feed. It is intended to complement, not replace, official district and state disaster-management broadcasts.</p></div>
+      <div class="card"><span class="eyebrow">ABOUT THIS PORTAL</span><h2>What is this page?</h2><p>This is a public-facing view of MeghDrishti's village-level early warning feed. It is intended to complement, not replace, official district and state disaster-management broadcasts.</p></div>
       <div class="card"><span class="eyebrow">PROTOTYPE NOTICE</span><h2>Demo environment</h2><p>This is a SIH 2026 prototype. Sensor inputs are simulated and model outputs are illustrative. In an emergency, always follow instructions from local authorities and NDRF/SDRF officials on the ground.</p></div>
     </div>
   </div>
@@ -55,11 +60,13 @@
 
 <div id="toast"></div>
 <script>
-let known=new Set();const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let known=new Set();const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let knownVerified=new Set();
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2600)}
 async function loadPublicAlerts(){try{const d=await(await fetch('/api/public-alerts')).json();const a=d.alerts||[];const levels=['Critical','Warning','Watch','Low'];const highest=levels.find(x=>a.some(y=>y.level===x))||'Low';$('publicHighest').textContent=highest.toUpperCase();$('publicHighest').className='public-'+highest.toLowerCase();$('publicCount').textContent=a.length;$('publicUpdated').textContent='Updated '+new Date(d.updated_at*1000).toLocaleTimeString();$('publicAlerts').innerHTML=a.length?a.map(x=>`<article class="public-alert ${x.level}"><div class="alert-level">${esc(x.level)}</div><div class="alert-main"><h3>${esc(x.village_name)} · ${esc(x.district)}</h3><p>${esc(x.message)}</p><div class="alert-meta"><span>⏱ Lead time: <b>${x.estimated_lead_time_min} min</b></span><span>🌧 ${Number(x.rainfall_mm_hr).toFixed(1)} mm/hr</span><span>💧 Soil ${Number(x.soil_moisture_pct).toFixed(0)}%</span></div><div class="action-box"><b>Recommended action:</b> ${esc(x.recommended_action)}</div></div></article>`).join(''):'<div class="all-clear"><b>No active Watch/Warning/Critical alerts.</b><span>Continue monitoring official channels.</span></div>';a.forEach(x=>{if(!known.has(x.id)){known.add(x.id);notify(x)}})}catch(e){$('publicAlerts').innerHTML='<div class="muted">Live feed unavailable. Check your connection.</div>'}}
 function notify(a){if(!('Notification' in window)||Notification.permission!=='granted')return;const title=`${a.level}: ${a.village_name}`;const body=`${a.message} Estimated lead time: ${a.estimated_lead_time_min} minutes.`;if('serviceWorker' in navigator){navigator.serviceWorker.ready.then(r=>r.showNotification(title,{body,tag:a.id,requireInteraction:a.level==='Critical',data:{url:'/disaster-alerts'}})).catch(()=>new Notification(title,{body}))}else{new Notification(title,{body})}}
+async function loadVerifiedReports(){try{const d=await(await fetch('/api/verified-reports')).json();const reports=d.reports||[];$('verifiedReports').innerHTML=reports.length?reports.map(r=>`<article class="verified-report"><div class="verified-badge">✔ VERIFIED</div><div class="verified-main"><h3>${esc(r.category)} · ${esc(r.village_id)}</h3><p>${esc(r.description)}</p><div class="alert-meta"><span>⏱ ${new Date(r.timestamp*1000).toLocaleString()}</span>${r.image_url?`<span><img src="${esc(r.image_url)}" style="height:40px;border-radius:6px;border:1px solid var(--line);vertical-align:middle;margin-left:8px"></span>`:''}</div><div class="action-box"><b>Status:</b> ${esc(r.status)} · confidence ${(r.confidence*100).toFixed(0)}%</div></div></article>`).join(''):'<div class="all-clear"><b>No verified community signals yet.</b><span>Verified reports will appear here after officer review.</span></div>';reports.forEach(r=>{if(!knownVerified.has(r.id)){knownVerified.add(r.id);notifyVerified(r)}})}catch(e){$('verifiedReports').innerHTML='<div class="muted">Unable to load verified signals.</div>'}}
+function notifyVerified(r){if(!('Notification' in window)||Notification.permission!=='granted')return;const title='Verified Community Signal: '+r.category;const body=r.description;if('serviceWorker' in navigator){navigator.serviceWorker.ready.then(sw=>sw.showNotification(title,{body,tag:r.id,requireInteraction:false,data:{url:'/disaster-alerts'}})).catch(()=>new Notification(title,{body}))}else{new Notification(title,{body})}}
 async function enablePublicNotifications(){if(!('Notification' in window)){toast('This browser does not support notifications.');return}const p=await Notification.requestPermission();$('notifyHelp').textContent=p==='granted'?'✓ Emergency browser notifications enabled. Keep this site open for live alerts.':'Notifications were not enabled.';if(p==='granted')toast('Emergency notifications enabled.')}
-loadPublicAlerts();setInterval(loadPublicAlerts,4000);if('serviceWorker' in navigator)navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+loadPublicAlerts();loadVerifiedReports();setInterval(loadPublicAlerts,4000);setInterval(loadVerifiedReports,4000);if('serviceWorker' in navigator)navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
 </script>
 </body></html>

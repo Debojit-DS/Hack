@@ -5,5 +5,7 @@ python-multipart
 scikit-learn
 numpy
 joblib
-
 pillow
+sqlalchemy
+openpyxl
+pandas

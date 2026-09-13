@@ -1,13 +1,17 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import io, os, time, math, uuid
+import pandas as pd
+from datetime import datetime
 
 from app.data.villages import VILLAGES, VILLAGE_BY_ID
 from app.data.historical_events import HISTORICAL_EVENTS
 from app.data.sensor_simulator import sensor_network
+from app.data.citizen_db import init_db, get_session, Citizen
 from app.models.ml_model import build_feature_row, predict
 from app.models import citizen_signal
+from app.models.vision_verifier import verify_disaster_image
 from app.alerts.alert_engine import alert_engine
 from app.data.resilience import (SAFE_SPOTS, HELIPADS, REPORTS, MESSAGES, UPLOAD_DIR,
                                   histogram, add_report, verify_report, send_message)
@@ -174,6 +178,15 @@ async def create_report(
         if len(raw) > MAX_IMAGE_BYTES:
             raise HTTPException(400, "Image too large (max 6MB).")
         duplicate = citizen_signal.is_duplicate(village_id, raw)
+        vision = verify_disaster_image(raw, category)
+        if not vision.get("is_valid", False):
+            raise HTTPException(
+                422,
+                detail={
+                    "detail": "Image rejected as unrelated or false alarm",
+                    "reason": vision.get("reason", "Image did not pass AI vision verification."),
+                },
+            )
         try:
             image_analysis = citizen_signal.analyze_image(raw)
         except Exception:
@@ -212,6 +225,17 @@ async def create_report(
 @router.get("/reports")
 def reports(): return list(REPORTS)[:100]
 
+
+@router.get("/verified-reports")
+def verified_reports():
+    items = [r for r in REPORTS if r.get("status") == "verified"]
+    return {
+        "service": "MeghDrishti Verified Community Signals",
+        "count": len(items),
+        "reports": items[:20],
+        "updated_at": time.time(),
+    }
+
 class VerifyRequest(BaseModel): verified: bool; verifier: str = "Duty Officer"
 
 @router.post("/reports/{report_id}/verify")
@@ -238,3 +262,236 @@ async def cloudburst_analyze(image: UploadFile = File(...)):
                 "note":"Prototype image-processing signal; calibrate with labelled satellite/radar imagery before operational use."}
     except Exception as exc:
         raise HTTPException(400, f"Unable to process image: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Citizen database management
+# ---------------------------------------------------------------------------
+class CitizenCreate(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = None
+    address: str
+    ward_id: Optional[str] = None
+    ward_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    family_members: int = 0
+    notes: Optional[str] = None
+
+
+class CitizenUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    ward_id: Optional[str] = None
+    ward_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    family_members: Optional[int] = None
+    notes: Optional[str] = None
+
+
+def _citizen_to_dict(c: Citizen) -> dict:
+    return {
+        "id": c.id,
+        "name": c.name,
+        "phone": c.phone,
+        "email": c.email,
+        "address": c.address,
+        "ward_id": c.ward_id,
+        "ward_name": c.ward_name,
+        "latitude": c.latitude,
+        "longitude": c.longitude,
+        "family_members": c.family_members,
+        "notes": c.notes,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+@router.get("/citizens")
+def list_citizens(ward_id: Optional[str] = None, q: Optional[str] = None):
+    db = get_session()
+    try:
+        query = db.query(Citizen)
+        if ward_id:
+            query = query.filter(Citizen.ward_id == ward_id)
+        if q:
+            like = f"%{q}%"
+            query = query.filter(
+                (Citizen.name.ilike(like))
+                | (Citizen.phone.ilike(like))
+                | (Citizen.address.ilike(like))
+            )
+        citizens = query.all()
+        return [_citizen_to_dict(c) for c in citizens]
+    finally:
+        db.close()
+
+
+@router.get("/citizens/{citizen_id}")
+def get_citizen(citizen_id: str):
+    db = get_session()
+    try:
+        c = db.query(Citizen).filter(Citizen.id == citizen_id).first()
+        if not c:
+            raise HTTPException(404, "Citizen not found")
+        return _citizen_to_dict(c)
+    finally:
+        db.close()
+
+
+@router.post("/citizens")
+def create_citizen(payload: CitizenCreate):
+    db = get_session()
+    try:
+        cid = f"CTZ-{int(time.time()*1000)}"
+        c = Citizen(
+            id=cid,
+            name=payload.name,
+            phone=payload.phone,
+            email=payload.email,
+            address=payload.address,
+            ward_id=payload.ward_id,
+            ward_name=payload.ward_name,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            family_members=payload.family_members,
+            notes=payload.notes,
+        )
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return _citizen_to_dict(c)
+    finally:
+        db.close()
+
+
+@router.put("/citizens/{citizen_id}")
+def update_citizen(citizen_id: str, payload: CitizenUpdate):
+    db = get_session()
+    try:
+        c = db.query(Citizen).filter(Citizen.id == citizen_id).first()
+        if not c:
+            raise HTTPException(404, "Citizen not found")
+        updates = payload.dict(exclude_unset=True)
+        for k, v in updates.items():
+            setattr(c, k, v)
+        c.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(c)
+        return _citizen_to_dict(c)
+    finally:
+        db.close()
+
+
+@router.delete("/citizens/{citizen_id}")
+def delete_citizen(citizen_id: str):
+    db = get_session()
+    try:
+        c = db.query(Citizen).filter(Citizen.id == citizen_id).first()
+        if not c:
+            raise HTTPException(404, "Citizen not found")
+        db.delete(c)
+        db.commit()
+        return {"detail": "Citizen deleted", "id": citizen_id}
+    finally:
+        db.close()
+
+
+@router.post("/citizens/upload")
+async def upload_citizens_excel(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(400, "No file uploaded")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in (".xlsx", ".xls"):
+        raise HTTPException(400, "Unsupported file format. Please upload .xlsx or .xls")
+
+    raw = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(raw))
+    except Exception as exc:
+        raise HTTPException(400, f"Unable to parse Excel file: {exc}")
+
+    required_cols = {"name", "phone", "address"}
+    missing = required_cols - set(c.lower() for c in df.columns)
+    if missing:
+        raise HTTPException(400, f"Missing required columns: {', '.join(sorted(missing))}")
+
+    col_map = {c.lower(): c for c in df.columns}
+    db = get_session()
+    inserted = 0
+    errors = []
+    try:
+        for idx, row in df.iterrows():
+            try:
+                cid = f"CTZ-{int(time.time()*1000)}-{idx}"
+                c = Citizen(
+                    id=cid,
+                    name=str(row.get(col_map.get("name", "name"), "")).strip(),
+                    phone=str(row.get(col_map.get("phone", "phone"), "")).strip(),
+                    email=str(row.get(col_map.get("email", "email"), "")).strip() or None,
+                    address=str(row.get(col_map.get("address", "address"), "")).strip(),
+                    ward_id=str(row.get(col_map.get("ward_id", "ward_id"), "")).strip() or None,
+                    ward_name=str(row.get(col_map.get("ward_name", "ward_name"), "")).strip() or None,
+                    latitude=float(row[col_map.get("latitude", "latitude")]) if col_map.get("latitude") and pd.notna(row.get(col_map.get("latitude", "latitude"))) else None,
+                    longitude=float(row[col_map.get("longitude", "longitude")]) if col_map.get("longitude") and pd.notna(row.get(col_map.get("longitude", "longitude"))) else None,
+                    family_members=int(row[col_map.get("family_members", "family_members")]) if col_map.get("family_members") and pd.notna(row.get(col_map.get("family_members", "family_members"))) else 0,
+                    notes=str(row.get(col_map.get("notes", "notes"), "")).strip() or None,
+                )
+                db.add(c)
+                inserted += 1
+            except Exception as exc:
+                errors.append(f"Row {idx + 2}: {exc}")
+        db.commit()
+    finally:
+        db.close()
+
+    return {
+        "inserted": inserted,
+        "errors": errors,
+        "total_rows": len(df),
+    }
+
+
+@router.get("/citizens/export")
+def export_citizens_excel(ward_id: Optional[str] = None):
+    db = get_session()
+    try:
+        query = db.query(Citizen)
+        if ward_id:
+            query = query.filter(Citizen.ward_id == ward_id)
+        citizens = query.all()
+        if not citizens:
+            raise HTTPException(404, "No citizens found")
+
+        rows = []
+        for c in citizens:
+            rows.append({
+                "ID": c.id,
+                "Name": c.name,
+                "Phone": c.phone,
+                "Email": c.email,
+                "Address": c.address,
+                "Ward ID": c.ward_id,
+                "Ward Name": c.ward_name,
+                "Latitude": c.latitude,
+                "Longitude": c.longitude,
+                "Family Members": c.family_members,
+                "Notes": c.notes,
+            })
+        df = pd.DataFrame(rows)
+        out = io.BytesIO()
+        df.to_excel(out, index=False, engine="openpyxl")
+        out.seek(0)
+        return Response(
+            content=out.read(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=citizens.xlsx"},
+        )
+    finally:
+        db.close()
+
